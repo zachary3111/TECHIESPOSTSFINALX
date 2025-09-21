@@ -1,0 +1,31 @@
+{
+  "jobs": [
+    {
+      "name": "Football Posts",
+      "searchQuery": "football",
+      "maxPosts": 20,
+      "postTimeRange": "7d",
+      "outputFile": "football_posts.json"
+    },
+    {
+      "name": "Technology News",
+      "searchQuery": "artificial intelligence technology",
+      "maxPosts": 50,
+      "postTimeRange": "24h",
+      "outputFile": "tech_posts.json"
+    },
+    {
+      "name": "Climate Discussion",
+      "searchQuery": "climate change environment",
+      "maxPosts": 30,
+      "postTimeRange": "30d",
+      "outputFile": "climate_posts.json"
+    },
+    {
+      "name": "Direct URL Scrape",
+      "searchUrl": "https://www.facebook.com/search/posts/?q=programming",
+      "maxPosts": 15,
+      "outputFile": "programming_posts.json"
+    }
+  ]
+}
