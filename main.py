@@ -36,7 +36,7 @@ async def main():
             
             # Import scraper after Apify setup
             try:
-                from facebook_scraper_complete import FacebookPostsScraper
+                from EnhancedFacebookPostsScraper import FacebookPostsScraper
                 Actor.log.info("Successfully imported FacebookPostsScraper")
             except ImportError as e:
                 Actor.log.error(f"Failed to import scraper: {e}")
