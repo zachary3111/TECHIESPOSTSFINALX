@@ -1,140 +1,160 @@
 #!/usr/bin/env python3
 """
-Facebook Posts Search Scraper - Apify Actor Version
-Main entry point for Apify platform deployment
+Facebook Posts Search Scraper - Fixed Apify Actor Version
 """
 
 import asyncio
 import json
 import os
 import sys
-from typing import Dict, Any
-
-# Import Apify SDK
-try:
-    from apify import Actor
-except ImportError:
-    print("Apify SDK not found. Installing...")
-    os.system("pip install apify")
-    from apify import Actor
-
-# Import our scraper
-from facebook_scraper_complete import FacebookPostsScraper, FacebookCookieManager
+import traceback
+import html
 
 async def main():
-    """
-    Main Actor function for Apify platform
-    """
-    async with Actor:
-        # Get input from Apify
-        actor_input = await Actor.get_input() or {}
+    try:
+        from apify import Actor
         
-        # Log the input for debugging
-        Actor.log.info(f"Actor input: {json.dumps(actor_input, indent=2)}")
-        
-        # Validate input
-        search_query = actor_input.get('searchQuery', '').strip()
-        search_url = actor_input.get('searchUrl', '').strip()
-        
-        if not search_query and not search_url:
-            await Actor.fail('Either searchQuery or searchUrl must be provided')
-            return
-        
-        if search_query and search_url:
-            Actor.log.warning('Both searchQuery and searchUrl provided. Using searchQuery.')
-            search_url = None
-        
-        # Extract parameters
-        max_posts = actor_input.get('maxPosts', 10)
-        post_time_range = actor_input.get('postTimeRange', '').strip() or None
-        headless = actor_input.get('headless', True)
-        debug = actor_input.get('debug', False)
-        use_cookies = actor_input.get('useCookies', True)
-        facebook_cookies = actor_input.get('facebookCookies', '').strip()
-        proxy = actor_input.get('proxy', '').strip() or None
-        
-        # Validate maxPosts
-        if not isinstance(max_posts, int) or max_posts < 1 or max_posts > 5000:
-            await Actor.fail('maxPosts must be an integer between 1 and 5000')
-            return
-        
-        # Validate postTimeRange
-        if post_time_range and post_time_range not in ['24h', '7d', '30d', '90d']:
-            await Actor.fail('postTimeRange must be one of: 24h, 7d, 30d, 90d')
-            return
-        
-        Actor.log.info(f"Starting Facebook scraper with query: {search_query or search_url}")
-        Actor.log.info(f"Max posts: {max_posts}, Time range: {post_time_range or 'None'}")
-        
-        try:
-            # Set up cookies if provided
-            cookie_manager = None
+        async with Actor:
+            Actor.log.info("Starting Facebook Posts Scraper...")
+            
+            # Get input
+            actor_input = await Actor.get_input() or {}
+            Actor.log.info(f"Input received: {json.dumps(actor_input, indent=2)}")
+            
+            # Validate basic requirements
+            search_query = actor_input.get('searchQuery', '').strip()
+            search_url = actor_input.get('searchUrl', '').strip()
+            
+            # Fix URL encoding issue
+            if search_url:
+                search_url = html.unescape(search_url)
+                Actor.log.info(f"Fixed URL: {search_url}")
+            
+            if not search_query and not search_url:
+                await Actor.fail("Either searchQuery or searchUrl must be provided")
+                return
+            
+            # Import scraper after Apify setup
+            try:
+                from facebook_scraper_complete import FacebookPostsScraper
+                Actor.log.info("Successfully imported FacebookPostsScraper")
+            except ImportError as e:
+                Actor.log.error(f"Failed to import scraper: {e}")
+                await Actor.fail("Failed to import scraper")
+                return
+            
+            # Handle cookies
+            facebook_cookies = actor_input.get('facebookCookies', '').strip()
+            use_cookies = actor_input.get('useCookies', False)  # Default to False for stability
+            
             if use_cookies and facebook_cookies:
-                cookie_manager = FacebookCookieManager()
                 try:
-                    # Parse cookies from JSON string
+                    from facebook_scraper_complete import FacebookCookieManager
+                    cookie_manager = FacebookCookieManager()
                     cookies_data = json.loads(facebook_cookies)
                     if isinstance(cookies_data, list):
-                        cookie_manager.cookies = cookies_data
-                        # Save to file for the scraper to use
                         cookie_manager.save_cookies_to_file(cookies_data)
                         Actor.log.info(f"Loaded {len(cookies_data)} Facebook cookies")
                     else:
-                        Actor.log.warning("Invalid cookies format. Expected JSON array.")
+                        Actor.log.warning("Invalid cookies format. Proceeding without cookies.")
                         use_cookies = False
-                except json.JSONDecodeError:
-                    Actor.log.warning("Failed to parse Facebook cookies JSON. Proceeding without cookies.")
+                except json.JSONDecodeError as e:
+                    Actor.log.warning(f"Failed to parse cookies: {e}. Proceeding without cookies.")
                     use_cookies = False
-            
-            # Initialize scraper
-            scraper = FacebookPostsScraper(
-                headless=headless,
-                proxy=proxy,
-                debug=debug
-            )
-            
-            # Perform scraping
-            posts = await scraper.search_posts(
-                search_query=search_query,
-                search_url=search_url,
-                max_posts=max_posts,
-                post_time_range=post_time_range,
-                use_cookies=use_cookies
-            )
-            
-            Actor.log.info(f"Successfully scraped {len(posts)} posts")
-            
-            # Save results to Apify dataset
-            if posts:
-                await Actor.push_data(posts)
-                Actor.log.info(f"Pushed {len(posts)} posts to dataset")
-                
-                # Also save as key-value store for easy access
-                await Actor.set_value('RESULTS', {
-                    'totalPosts': len(posts),
-                    'searchQuery': search_query,
-                    'searchUrl': search_url,
-                    'timeRange': post_time_range,
-                    'scrapedAt': posts[0].get('time') if posts else None,
-                    'posts': posts
-                })
-                
-                # Log sample results
-                Actor.log.info("Sample results:")
-                for i, post in enumerate(posts[:3], 1):
-                    Actor.log.info(f"Post {i}: {post.get('pageName', 'Unknown')} - {post.get('likes', 0)} likes")
             else:
-                Actor.log.warning("No posts found")
-                await Actor.set_value('RESULTS', {
-                    'totalPosts': 0,
-                    'searchQuery': search_query,
-                    'searchUrl': search_url,
-                    'message': 'No posts found. Try different search terms or check if cookies are needed.'
-                })
+                use_cookies = False
+                Actor.log.info("No cookies provided, running without authentication")
             
-        except Exception as e:
-            Actor.log.error(f"Scraping failed: {str(e)}")
-            await Actor.fail(f"Scraping failed: {str(e)}")
+            # Initialize scraper with safer settings for Apify
+            scraper = FacebookPostsScraper(
+                headless=True,  # Always headless in Apify
+                debug=False,    # Disable debug to reduce memory usage
+                proxy=actor_input.get('proxy', '').strip() or None
+            )
+            
+            Actor.log.info("Starting scraping process...")
+            
+            # Run scraper with error handling
+            try:
+                posts = await scraper.search_posts(
+                    search_query=search_query,
+                    search_url=search_url,
+                    max_posts=min(actor_input.get('maxPosts', 10), 50),  # Limit to 50 for stability
+                    post_time_range=actor_input.get('postTimeRange'),
+                    use_cookies=use_cookies
+                )
+                
+                Actor.log.info(f"Scraped {len(posts)} posts")
+                
+                if posts:
+                    await Actor.push_data(posts)
+                    Actor.log.info(f"Pushed {len(posts)} posts to dataset")
+                    
+                    # Save summary
+                    await Actor.set_value('RESULTS', {
+                        'totalPosts': len(posts),
+                        'searchQuery': search_query,
+                        'searchUrl': search_url,
+                        'timeRange': actor_input.get('postTimeRange'),
+                        'usedCookies': use_cookies,
+                        'posts': posts[:3]  # Save only first 3 posts in summary
+                    })
+                    
+                    # Log sample results
+                    Actor.log.info("Sample results:")
+                    for i, post in enumerate(posts[:3], 1):
+                        Actor.log.info(f"Post {i}: {post.get('pageName', 'Unknown')} - {post.get('likes', 0)} likes")
+                        
+                else:
+                    Actor.log.warning("No posts found")
+                    await Actor.set_value('RESULTS', {
+                        'totalPosts': 0,
+                        'searchQuery': search_query,
+                        'searchUrl': search_url,
+                        'message': 'No posts found. Facebook may be blocking access or cookies may be needed.',
+                        'usedCookies': use_cookies
+                    })
+                    
+            except Exception as scraping_error:
+                Actor.log.error(f"Scraping error: {str(scraping_error)}")
+                
+                # Try fallback with minimal settings
+                Actor.log.info("Attempting fallback scraping...")
+                try:
+                    fallback_scraper = FacebookPostsScraper(
+                        headless=True,
+                        debug=False
+                    )
+                    
+                    # Try simple search without cookies
+                    posts = await fallback_scraper.search_posts(
+                        search_query=search_query or "technology",  # Fallback query
+                        max_posts=5,
+                        use_cookies=False
+                    )
+                    
+                    if posts:
+                        await Actor.push_data(posts)
+                        Actor.log.info(f"Fallback successful: {len(posts)} posts")
+                    else:
+                        await Actor.set_value('RESULTS', {
+                            'error': 'Scraping failed',
+                            'originalError': str(scraping_error),
+                            'message': 'Both primary and fallback scraping failed'
+                        })
+                        
+                except Exception as fallback_error:
+                    Actor.log.error(f"Fallback also failed: {str(fallback_error)}")
+                    await Actor.set_value('RESULTS', {
+                        'error': 'Complete failure',
+                        'primaryError': str(scraping_error),
+                        'fallbackError': str(fallback_error)
+                    })
+            
+    except Exception as e:
+        Actor.log.error(f"Actor failed with error: {str(e)}")
+        Actor.log.error(f"Traceback: {traceback.format_exc()}")
+        await Actor.fail("Critical error in Actor execution")
 
 if __name__ == '__main__':
     asyncio.run(main())
