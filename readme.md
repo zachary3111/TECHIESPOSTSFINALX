@@ -1,257 +1,144 @@
-# Facebook Posts Search Scraper - Complete Replica
+# Facebook Posts Search Scraper
 
-A comprehensive replica of the `easyapi/facebook-posts-search-scraper` Actor that extracts posts from Facebook search results without paying for the original Actor.
+Scrape posts from Facebook search results based on your query. Extract detailed information including post content, engagement metrics, and author details.
 
-## 🎯 Features
+## Features
 
-- ✅ **Complete Feature Parity**: Matches all functionality of the original $19.99/month Actor
-- 🔍 **Search by Query or URL**: Use custom search terms or direct Facebook search URLs
-- 📊 **Rich Data Extraction**: Post content, engagement metrics, author details, timestamps
-- 🎛️ **Time Range Filtering**: 24h, 7d, 30d, 90d options
-- 🛡️ **Anti-Detection**: Stealth browser automation with human-like behavior
-- 📁 **Multiple Output Formats**: JSON with option to extend to CSV, Excel
-- 🚀 **Batch Processing**: Process multiple searches automatically
-- 💻 **Interactive CLI**: User-friendly command-line interface
+- Search Facebook posts by keywords or direct URL
+- Extract post content, likes, comments, shares
+- Filter by time range (24h, 7d, 30d, 90d)
+- Support for Facebook cookie authentication
+- Debug mode for troubleshooting
+- Proxy support for different regions
 
-## 📋 Extracted Data Points
+## Input Parameters
 
-Each post includes:
-- `facebookUrl` - URL of the Facebook page
-- `pageId` - Unique page identifier  
-- `postId` - Unique post identifier
-- `pageName` - Name of the Facebook page
-- `url` - Direct URL to the post
-- `time` - Formatted timestamp
-- `timestamp` - Unix timestamp
-- `likes` - Number of likes
-- `comments` - Number of comments
-- `shares` - Number of shares
-- `text` - Post content
-- `link` - Any external links
-- `thumb` - Thumbnail image URL
-- `topLevelUrl` - Canonical post URL
-- `facebookId` - Page Facebook ID
-- `postFacebookId` - Post Facebook ID
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `searchQuery` | String | Yes* | Keywords to search for Facebook posts |
+| `searchUrl` | String | Yes* | Direct Facebook search URL (alternative to searchQuery) |
+| `maxPosts` | Integer | No | Maximum posts to scrape (1-5000, default: 10) |
+| `postTimeRange` | String | No | Time filter: "24h", "7d", "30d", "90d" |
+| `headless` | Boolean | No | Run browser in headless mode (default: true) |
+| `debug` | Boolean | No | Enable debug mode (default: false) |
+| `useCookies` | Boolean | No | Use Facebook cookies for authentication (default: true) |
+| `facebookCookies` | String | No | Facebook cookies in JSON format |
+| `proxy` | String | No | Proxy server URL |
 
-## 🛠️ Installation
+*Either `searchQuery` or `searchUrl` must be provided.
 
-### Quick Setup
-```bash
-# Clone or download the files
-chmod +x setup.sh
-./setup.sh
-```
+## Output
 
-### Manual Setup
-```bash
-# Create virtual environment
-python3 -m venv facebook_scraper_env
-source facebook_scraper_env/bin/activate
+The actor outputs an array of post objects, each containing:
 
-# Install dependencies
-pip install playwright beautifulsoup4 aiofiles
-
-# Install browser
-playwright install chromium
-```
-
-## 🚀 Usage
-
-### 1. Interactive Mode (Recommended for beginners)
-```bash
-python facebook_scraper.py
-```
-Follow the prompts to:
-- Enter search query or URL
-- Set maximum posts to scrape
-- Choose time range filter
-- Configure headless/visible browser mode
-
-### 2. Quick Example
-```bash
-python facebook_scraper.py --example
-```
-Runs a quick demo scraping AI-related posts.
-
-### 3. Batch Processing
-```bash
-python facebook_scraper.py --batch config.json
-```
-Process multiple searches using a configuration file.
-
-### 4. Programmatic Usage
-```python
-import asyncio
-from facebook_scraper import FacebookPostsScraper
-
-async def scrape_posts():
-    scraper = FacebookPostsScraper(headless=True)
-    
-    posts = await scraper.search_posts(
-        search_query="football",
-        max_posts=50,
-        post_time_range="7d"
-    )
-    
-    filename = await scraper.save_results(posts)
-    print(f"Scraped {len(posts)} posts to {filename}")
-
-asyncio.run(scrape_posts())
-```
-
-## ⚙️ Configuration Options
-
-### Search Parameters
-- **searchQuery**: Keywords to search for
-- **searchUrl**: Direct Facebook search URL (alternative to query)
-- **maxPosts**: Maximum posts to scrape (1-5000)
-- **postTimeRange**: Time filter (`24h`, `7d`, `30d`, `90d`)
-
-### Browser Settings
-- **headless**: Run browser in background (True/False)
-- **proxy**: Proxy server for requests (optional)
-
-### Example Batch Config
 ```json
 {
-  "jobs": [
-    {
-      "name": "Football Posts",
-      "searchQuery": "football",
-      "maxPosts": 20,
-      "postTimeRange": "7d",
-      "outputFile": "football_posts.json"
-    }
-  ]
+  "facebookUrl": "https://www.facebook.com/page",
+  "pageId": "123456789",
+  "postId": "987654321", 
+  "pageName": "Page Name",
+  "url": "https://www.facebook.com/page/posts/987654321",
+  "time": "2025-09-22 10:30:15",
+  "timestamp": 1727001015,
+  "likes": 1234,
+  "comments": 89,
+  "shares": 156,
+  "text": "Post content text...",
+  "link": "https://external-link.com",
+  "thumb": "https://scontent.facebook.com/image.jpg",
+  "topLevelUrl": "https://www.facebook.com/page/posts/987654321",
+  "facebookId": "123456789",
+  "postFacebookId": "987654321"
 }
 ```
 
-## 🔧 Advanced Features
+## How to Get Facebook Cookies
 
-### Anti-Detection Measures
-- Randomized user agents
-- Human-like scrolling patterns
-- Realistic delays between actions
-- Stealth browser configuration
-- Proxy support
+For best results, provide Facebook cookies for authentication:
 
-### Error Handling
-- Automatic retries for failed requests
-- Graceful handling of blocked pages
-- Comprehensive logging
-- Resource cleanup
+1. Go to Facebook.com and log in
+2. Press F12 to open Developer Tools
+3. Go to Application/Storage tab → Cookies → https://www.facebook.com
+4. Find cookies: `c_user`, `xs`, `datr`
+5. Copy their values and format as JSON:
 
-### Performance Optimization
-- Async/await for concurrent operations
-- Image and unnecessary resource blocking
-- Efficient memory management
-- Progress tracking
+```json
+[
+  {
+    "name": "c_user",
+    "value": "YOUR_USER_ID",
+    "domain": ".facebook.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": false
+  },
+  {
+    "name": "xs", 
+    "value": "YOUR_XS_TOKEN",
+    "domain": ".facebook.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true
+  },
+  {
+    "name": "datr",
+    "value": "YOUR_DATR_TOKEN", 
+    "domain": ".facebook.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true
+  }
+]
+```
 
-## 📊 Output Examples
+## Example Usage
 
-### Single Post Example
+### Basic Search
 ```json
 {
-  "facebookUrl": "https://www.facebook.com/BleacherReportFootball",
-  "pageId": "100044187438640",
-  "postId": "1150692399746997", 
-  "pageName": "Bleacher Report Football",
-  "url": "https://www.facebook.com/BleacherReportFootball/posts/pfbid02KPD...",
-  "time": "2024-10-01 18:11:20",
-  "timestamp": 1727777480,
-  "likes": 18189,
-  "comments": 399,
-  "shares": "2.4K",
-  "text": "After 1,016 games and 38 trophies, 40-year-old Andrés Iniesta...",
-  "link": "https://www.facebook.com/photo/?fbid=1150688623080708...",
-  "thumb": "https://scontent-ams4-1.xx.fbcdn.net/v/t39.30808-6/461867291...",
-  "topLevelUrl": "https://www.facebook.com/100044187438640/posts/1150692399746997",
-  "facebookId": "100044187438640",
-  "postFacebookId": "1150692399746997"
+  "searchQuery": "artificial intelligence",
+  "maxPosts": 20,
+  "postTimeRange": "7d"
 }
 ```
 
-## ⚠️ Important Considerations
-
-### Legal & Ethical
-- **Terms of Service**: Facebook prohibits automated scraping
-- **Rate Limiting**: Implement delays to avoid being blocked
-- **Data Privacy**: Handle personal data responsibly
-- **Fair Use**: Use for research, analysis, not commercial resale
-
-### Technical Limitations
-- **Public Posts Only**: Cannot access private/restricted content
-- **Dynamic Structure**: Facebook frequently changes their HTML structure
-- **Rate Limits**: Aggressive scraping may result in IP blocks
-- **Login Required**: Some content may require authentication
-
-### Troubleshooting
-- **No Posts Found**: Try different search terms or check if login is required
-- **Browser Crashes**: Increase memory limits or use headless mode
-- **Blocked Requests**: Use proxies or reduce scraping speed
-- **Outdated Selectors**: Update CSS selectors if Facebook changes structure
-
-## 🆚 Comparison with Original Actor
-
-| Feature | Original Actor | This Replica |
-|---------|---------------|--------------|
-| Monthly Cost | $19.99 | Free |
-| Setup Time | Instant | 10 minutes |
-| Customization | Limited | Full control |
-| Data Format | Fixed | Customizable |
-| Rate Limits | Built-in | Configure yourself |
-| Updates | Automatic | Manual |
-| Support | Paid | Community |
-
-## 🔄 Maintenance
-
-### Regular Updates
-- Monitor Facebook structure changes
-- Update CSS selectors as needed
-- Upgrade dependencies periodically
-- Test functionality regularly
-
-### Performance Monitoring
-```bash
-# Check logs
-tail -f scraper.log
-
-# Monitor resource usage
-htop
-
-# Test connectivity
-python -c "import asyncio; from facebook_scraper import FacebookPostsScraper; scraper = FacebookPostsScraper(); print('✅ Import successful')"
+### With Authentication
+```json
+{
+  "searchQuery": "machine learning",
+  "maxPosts": 50,
+  "useCookies": true,
+  "facebookCookies": "[{\"name\":\"c_user\",\"value\":\"123456789\",\"domain\":\".facebook.com\",\"path\":\"/\",\"secure\":true,\"httpOnly\":false}]"
+}
 ```
 
-## 🤝 Contributing
+### Direct URL
+```json
+{
+  "searchUrl": "https://www.facebook.com/search/posts/?q=technology",
+  "maxPosts": 30
+}
+```
 
-Feel free to:
-- Report issues and bugs
-- Suggest improvements
-- Submit pull requests
-- Share usage examples
+## Troubleshooting
 
-## 📝 License
+- **No posts found**: Try enabling cookies or use different search terms
+- **Login page detected**: Provide valid Facebook cookies
+- **Rate limiting**: Reduce maxPosts or add delays between runs
+- **Proxy issues**: Verify proxy URL format and connectivity
 
-This project is for educational purposes. Please ensure compliance with:
-- Facebook's Terms of Service
-- Local laws regarding web scraping
-- Data protection regulations (GDPR, CCPA, etc.)
+## Legal Notice
 
-## 🆘 Support
+This actor is for educational and research purposes. Users are responsible for:
+- Complying with Facebook's Terms of Service
+- Respecting data privacy laws (GDPR, CCPA, etc.)
+- Using scraped data ethically and legally
+- Only scraping publicly available content
 
-### Common Issues
-1. **"No posts found"**: Check if content requires login
-2. **"Browser crashes"**: Try headless mode or increase memory
-3. **"Connection refused"**: Use proxy or VPN
-4. **"Outdated selectors"**: Update CSS selectors in code
+## Support
 
-### Getting Help
-- Check the logs for error details
-- Try running in non-headless mode to see what's happening
-- Reduce the number of posts for testing
-- Use different search terms
-
----
-
-**Disclaimer**: This tool is for educational and research purposes. Users are responsible for ensuring compliance with applicable terms of service and laws.
+For issues or questions:
+1. Enable debug mode to see detailed logs
+2. Check that Facebook cookies are valid
+3. Verify search terms return results manually
+4. Review Actor run logs for error details
