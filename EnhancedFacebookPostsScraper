@@ -21,7 +21,16 @@ class EnhancedFacebookPostsScraper:
         self.use_cookies = input_data.get('useCookies', False)
         self.facebook_cookies = input_data.get('facebookCookies', '')
         self.debug = input_data.get('debug', False)
-        self.proxy_config = input_data.get('proxyConfiguration', {})
+        
+        # Handle proxy configuration (could be string or dict)
+        proxy_input = input_data.get('proxyConfiguration', input_data.get('proxy', {}))
+        if isinstance(proxy_input, str):
+            try:
+                self.proxy_config = json.loads(proxy_input)
+            except:
+                self.proxy_config = {}
+        else:
+            self.proxy_config = proxy_input
         
         self.browser_context = None
         self.scraped_posts = []
