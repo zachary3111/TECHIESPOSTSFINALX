@@ -1,0 +1,79 @@
+{
+  "title": "Facebook Posts Search Scraper",
+  "description": "Scrape posts from Facebook search results based on your query. Extract detailed information including post content, engagement metrics, and author details.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "searchQuery": {
+      "title": "Search Query",
+      "description": "The search query to find Facebook posts. Choose either this or Search URL.",
+      "type": "string",
+      "prefill": "artificial intelligence",
+      "example": "artificial intelligence"
+    },
+    "searchUrl": {
+      "title": "Search URL",
+      "description": "Complete Facebook search results page URL. Choose either this or Search Query.",
+      "type": "string",
+      "example": "https://www.facebook.com/search/posts/?q=technology"
+    },
+    "maxPosts": {
+      "title": "Maximum Number of Posts",
+      "description": "The maximum number of posts to scrape from the search results. The actor will stop when this limit is reached.",
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 5000,
+      "example": 10
+    },
+    "postTimeRange": {
+      "title": "Post Time Range",
+      "description": "Filter posts by time range to get more recent content.",
+      "type": "string",
+      "enum": ["24h", "7d", "30d", "90d"],
+      "enumTitles": ["Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days"],
+      "example": "7d"
+    },
+    "headless": {
+      "title": "Headless Mode",
+      "description": "Run browser in headless mode (no visible window). Recommended for better performance.",
+      "type": "boolean",
+      "default": true
+    },
+    "debug": {
+      "title": "Debug Mode",
+      "description": "Enable debug mode to save screenshots and HTML for troubleshooting.",
+      "type": "boolean",
+      "default": false
+    },
+    "useCookies": {
+      "title": "Use Facebook Cookies",
+      "description": "Use saved Facebook cookies for authentication. Required for accessing most posts.",
+      "type": "boolean",
+      "default": true
+    },
+    "proxy": {
+      "title": "Proxy Server",
+      "description": "Optional proxy server URL for requests (e.g., http://proxy.example.com:8080)",
+      "type": "string",
+      "example": "http://proxy.example.com:8080"
+    },
+    "outputFormat": {
+      "title": "Output Format",
+      "description": "Format for the output data",
+      "type": "string",
+      "enum": ["json"],
+      "default": "json"
+    }
+  },
+  "required": [],
+  "anyOf": [
+    {
+      "required": ["searchQuery"]
+    },
+    {
+      "required": ["searchUrl"]
+    }
+  ],
+  "additionalProperties": false
+}
