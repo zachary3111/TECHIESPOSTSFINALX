@@ -6,14 +6,14 @@
   "properties": {
     "searchQuery": {
       "title": "Search Query",
-      "description": "The search query to find Facebook posts. Choose either this or Search URL.",
+      "description": "The search query to find Facebook posts. Leave empty if using Search URL instead.",
       "type": "string",
       "prefill": "artificial intelligence",
       "example": "artificial intelligence"
     },
     "searchUrl": {
-      "title": "Search URL",
-      "description": "Complete Facebook search results page URL. Choose either this or Search Query.",
+      "title": "Search URL (Alternative)",
+      "description": "Complete Facebook search results page URL. Use this instead of Search Query if you have a specific URL.",
       "type": "string",
       "example": "https://www.facebook.com/search/posts/?q=technology"
     },
@@ -30,8 +30,8 @@
       "title": "Post Time Range",
       "description": "Filter posts by time range to get more recent content.",
       "type": "string",
-      "enum": ["24h", "7d", "30d", "90d"],
-      "enumTitles": ["Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days"],
+      "enum": ["", "24h", "7d", "30d", "90d"],
+      "enumTitles": ["No filter", "Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days"],
       "example": "7d"
     },
     "headless": {
@@ -52,28 +52,20 @@
       "type": "boolean",
       "default": true
     },
+    "facebookCookies": {
+      "title": "Facebook Cookies (JSON)",
+      "description": "Facebook authentication cookies in JSON format. Get these from your browser's developer tools.",
+      "type": "string",
+      "editor": "textarea",
+      "example": "[{\"name\":\"c_user\",\"value\":\"YOUR_USER_ID\",\"domain\":\".facebook.com\"}]"
+    },
     "proxy": {
       "title": "Proxy Server",
       "description": "Optional proxy server URL for requests (e.g., http://proxy.example.com:8080)",
       "type": "string",
       "example": "http://proxy.example.com:8080"
-    },
-    "outputFormat": {
-      "title": "Output Format",
-      "description": "Format for the output data",
-      "type": "string",
-      "enum": ["json"],
-      "default": "json"
     }
   },
   "required": [],
-  "anyOf": [
-    {
-      "required": ["searchQuery"]
-    },
-    {
-      "required": ["searchUrl"]
-    }
-  ],
   "additionalProperties": false
 }
