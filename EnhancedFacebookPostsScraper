@@ -150,18 +150,40 @@ class EnhancedFacebookPostsScraper:
             await page.reload(wait_until='networkidle')
             await asyncio.sleep(3)
             
-            # Check if we're still on login page
+            # More comprehensive authentication check
             login_indicators = [
                 'input[name="email"]',
                 'input[name="pass"]',
-                '[data-testid="royal_login_form"]'
+                '[data-testid="royal_login_form"]',
+                '#loginform',
+                '.login_form_container'
             ]
             
-            is_logged_in = True
-            for indicator in login_indicators:
+            # Also check for authenticated user indicators
+            auth_indicators = [
+                '[data-testid="left_nav_menu_item"]',
+                '[aria-label="Account"]',
+                '[data-testid="nav_profile_tab"]',
+                '.userNavigationLabel'
+            ]
+            
+            is_logged_in = False
+            
+            # Check for authenticated indicators first
+            for indicator in auth_indicators:
                 if await page.locator(indicator).count() > 0:
-                    is_logged_in = False
+                    is_logged_in = True
                     break
+            
+            # If no auth indicators, check for login indicators
+            if not is_logged_in:
+                for indicator in login_indicators:
+                    if await page.locator(indicator).count() > 0:
+                        is_logged_in = False
+                        break
+                else:
+                    # No login indicators found, assume logged in
+                    is_logged_in = True
             
             if is_logged_in:
                 logger.info("Authentication successful")
@@ -225,29 +247,47 @@ class EnhancedFacebookPostsScraper:
         posts = []
         
         try:
-            # Wait for posts to load
-            await page.wait_for_selector('[role="article"], [data-pagelet="FeedUnit"]', timeout=30000)
-            await asyncio.sleep(3)
+            # Check if we're on login page
+            if await page.locator('input[name="email"]').count() > 0:
+                logger.warning("Still on login page - attempting fallback extraction")
+                return await self.extract_posts_fallback(page)
             
-            # Get all post containers
+            # Wait for page to load and try multiple selectors
+            await asyncio.sleep(5)
+            
+            # Extended list of post selectors for different Facebook layouts
             post_selectors = [
                 '[role="article"]',
                 '[data-pagelet="FeedUnit"]',
                 '.userContentWrapper',
-                '._5jmm'
+                '._5jmm',
+                '[data-testid="post_message"]',
+                '.story_body_container',
+                '._4-u2._4-u8',
+                '.story_body_container',
+                '._5pcr',
+                '.feed_story',
+                '[data-ft]'
             ]
             
             post_elements = []
-            for selector in post_selectors:
-                elements = await page.locator(selector).all()
-                if elements:
-                    post_elements = elements
-                    logger.info(f"Found {len(elements)} posts using selector: {selector}")
-                    break
             
+            # Try each selector with shorter timeout
+            for selector in post_selectors:
+                try:
+                    await page.wait_for_selector(selector, timeout=10000)
+                    elements = await page.locator(selector).all()
+                    if elements and len(elements) > 0:
+                        post_elements = elements
+                        logger.info(f"Found {len(elements)} posts using selector: {selector}")
+                        break
+                except:
+                    continue
+            
+            # If no posts found with standard selectors, try fallback
             if not post_elements:
-                logger.warning("No post elements found")
-                return posts
+                logger.warning("No posts found with standard selectors, trying fallback")
+                return await self.extract_posts_fallback(page)
             
             # Process each post
             for i, post_element in enumerate(post_elements[:self.max_posts]):
@@ -266,6 +306,64 @@ class EnhancedFacebookPostsScraper:
             
         except Exception as e:
             logger.error(f"Error extracting posts: {e}")
+            # Try fallback extraction before giving up
+            return await self.extract_posts_fallback(page)
+
+    async def extract_posts_fallback(self, page: Page) -> List[Dict[str, Any]]:
+        """Fallback extraction method for when standard selectors fail"""
+        posts = []
+        
+        try:
+            logger.info("Attempting fallback post extraction...")
+            
+            # Get page content and search for text patterns
+            page_content = await page.content()
+            
+            # Look for common Facebook post patterns in the HTML
+            import re
+            
+            # Try to extract visible text that looks like posts
+            text_elements = await page.locator('div, span, p').all()
+            potential_posts = []
+            
+            for element in text_elements[:50]:  # Limit to first 50 elements
+                try:
+                    text = await element.inner_text()
+                    if text and len(text.strip()) > 20:  # Meaningful text content
+                        potential_posts.append({
+                            'text': text.strip(),
+                            'author': 'Unknown',
+                            'timestamp': '',
+                            'likes': 0,
+                            'comments': 0,
+                            'shares': 0,
+                            'post_url': '',
+                            'images': [],
+                            'extracted_at': datetime.now().isoformat(),
+                            'extraction_method': 'fallback'
+                        })
+                        
+                        if len(potential_posts) >= self.max_posts:
+                            break
+                except:
+                    continue
+            
+            # Filter and deduplicate posts
+            seen_texts = set()
+            for post in potential_posts:
+                text_key = post['text'][:100]  # Use first 100 chars as key
+                if text_key not in seen_texts and len(post['text']) > 50:
+                    seen_texts.add(text_key)
+                    posts.append(post)
+                    
+                    if len(posts) >= self.max_posts:
+                        break
+            
+            logger.info(f"Fallback extraction found {len(posts)} potential posts")
+            return posts
+            
+        except Exception as e:
+            logger.error(f"Fallback extraction failed: {e}")
             return posts
 
     async def extract_single_post(self, post_element, page: Page) -> Optional[Dict[str, Any]]:
@@ -403,29 +501,49 @@ class EnhancedFacebookPostsScraper:
             if self.use_cookies:
                 await self.set_cookies(page)
             
-            # Build search URL
-            search_url = self.build_search_url()
-            logger.info(f"Navigating to: {search_url}")
+            # Try primary search URL first, then fallback to simple URL
+            search_urls = [
+                self.build_search_url(),  # Complex filtered URL
+                f"https://www.facebook.com/search/posts/?q={quote_plus(self.search_query.strip())}&filters=recent"  # Simple URL
+            ]
             
-            # Navigate with retries
-            max_retries = 3
-            for attempt in range(max_retries):
+            posts = []
+            
+            for i, search_url in enumerate(search_urls):
                 try:
-                    await page.goto(search_url, wait_until='networkidle', timeout=60000)
-                    await asyncio.sleep(5)
-                    break
+                    logger.info(f"Attempting URL {i+1}/2: {search_url}")
+                    
+                    # Navigate with retries
+                    max_retries = 2
+                    for attempt in range(max_retries):
+                        try:
+                            await page.goto(search_url, wait_until='networkidle', timeout=60000)
+                            await asyncio.sleep(5)
+                            break
+                        except Exception as e:
+                            logger.warning(f"Navigation attempt {attempt + 1} failed: {e}")
+                            if attempt == max_retries - 1:
+                                raise
+                            await asyncio.sleep(5)
+                    
+                    # Check if we need to handle login
+                    if await page.locator('input[name="email"]').count() > 0:
+                        logger.warning("Login page detected - limited access")
+                    
+                    # Extract posts
+                    posts = await self.extract_posts(page)
+                    
+                    if posts:
+                        logger.info(f"Successfully extracted {len(posts)} posts from URL {i+1}")
+                        break
+                    else:
+                        logger.warning(f"No posts found with URL {i+1}, trying next URL")
+                        
                 except Exception as e:
-                    logger.warning(f"Navigation attempt {attempt + 1} failed: {e}")
-                    if attempt == max_retries - 1:
+                    logger.warning(f"URL {i+1} failed: {e}")
+                    if i == len(search_urls) - 1:  # Last URL
                         raise
-                    await asyncio.sleep(5)
-            
-            # Check if we need to handle login
-            if await page.locator('input[name="email"]').count() > 0:
-                logger.warning("Login page detected - limited access")
-            
-            # Extract posts
-            posts = await self.extract_posts(page)
+                    continue
             
             return posts
             
