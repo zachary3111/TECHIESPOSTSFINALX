@@ -262,7 +262,7 @@ class EnhancedFacebookPostsScraper:
         else:
             return f"{base_url}?q={encoded_query}&filters=recent"
 
-async def extract_posts(self, page: Page) -> List[Dict[str, Any]]:
+    async def extract_posts(self, page: Page) -> List[Dict[str, Any]]:
         """Extract posts from the page with crash recovery"""
         posts = []
         
