@@ -26,8 +26,7 @@ class EnhancedFacebookPostsScraper:
         self.browser_context = None
         self.scraped_posts = []
         
-   async def setup_browser(self):    
-    """Initialize browser with proxy and cookie support"""
+async def setup_browser(self):  # ← This should have 4 spaces    """Initialize browser with proxy and cookie support"""
     import os
     playwright = await async_playwright().start()
     
