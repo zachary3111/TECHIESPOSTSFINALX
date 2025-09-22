@@ -31,16 +31,36 @@ class EnhancedFacebookPostsScraper:
         """Initialize browser with proxy and cookie support"""
         playwright = await async_playwright().start()
         
-        # CRITICAL FIX: Always use headless mode on Apify platform
-        # Check if running on Apify platform
-        is_apify_platform = os.getenv('APIFY_IS_AT_HOME', 'false').lower() == 'true'
+        # BULLETPROOF FIX: Multiple ways to detect Apify platform and force headless
+        # Check multiple environment variables that indicate Apify platform
+        apify_indicators = [
+            os.getenv('APIFY_IS_AT_HOME'),
+            os.getenv('APIFY_ACTOR_ID'),
+            os.getenv('APIFY_ACTOR_RUN_ID'),
+            os.getenv('APIFY_TOKEN'),
+            os.getenv('APIFY_DEFAULT_DATASET_ID')
+        ]
         
-        # Force headless=True on Apify platform, regardless of debug setting
-        headless_mode = True if is_apify_platform else (not self.debug)
+        # If ANY Apify environment variable exists, we're on Apify platform
+        is_apify_platform = any(var for var in apify_indicators if var)
         
-        # Browser launch options
+        # Also check if we're in a container (another indicator)
+        is_container = os.path.exists('/.dockerenv') or os.getenv('container') == 'docker'
+        
+        # Force headless if on Apify platform OR in container OR debug is False
+        # This ensures headless mode in almost all server environments
+        headless_mode = True if (is_apify_platform or is_container) else (not self.debug)
+        
+        # SAFETY: If we're still not sure, check if DISPLAY variable exists
+        # If no DISPLAY, we MUST use headless mode
+        if not os.getenv('DISPLAY'):
+            headless_mode = True
+            
+        logger.info(f"Platform detection - Apify: {is_apify_platform}, Container: {is_container}, Headless: {headless_mode}")
+        
+        # Browser launch options with headless FORCED
         launch_options = {
-            'headless': headless_mode,  # Fixed: Always True on Apify
+            'headless': headless_mode,  # This will be True on Apify/containers
             'args': [
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
@@ -49,7 +69,10 @@ class EnhancedFacebookPostsScraper:
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
                 '--no-first-run',
-                '--no-zygote'
+                '--no-zygote',
+                '--disable-background-timer-throttling',
+                '--disable-renderer-backgrounding',
+                '--disable-backgrounding-occluded-windows'
             ]
         }
         
@@ -474,9 +497,10 @@ async def main():
         except Exception as e:
             error_msg = f"Scraping error: {str(e)}"
             logger.error(error_msg)
-            # Fixed error handling
+            # FIXED: Use proper error handling
             await Actor.set_status_message(error_msg)
-            await Actor.abort()
+            # Don't use Actor.abort() or Actor.exit() - just let the Actor finish
+            # The Actor will exit naturally with the error status message
 
 if __name__ == "__main__":
     asyncio.run(main())
