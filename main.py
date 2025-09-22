@@ -26,56 +26,63 @@ class EnhancedFacebookPostsScraper:
         self.browser_context = None
         self.scraped_posts = []
         
-   async def setup_browser(self):
-    """Initialize browser with proxy and cookie support"""
-    import os
-    playwright = await async_playwright().start()
-    
-    # CRITICAL FIX: Always use headless mode on Apify platform
-    # Check if running on Apify platform
-    is_apify_platform = os.getenv('APIFY_IS_AT_HOME', 'false').lower() == 'true'
-    
-    # Force headless=True on Apify platform, regardless of debug setting
-    headless_mode = True if is_apify_platform else (not self.debug)
-    
-    # Browser launch options
-    launch_options = {
-        'headless': headless_mode,  # ✅ Fixed: Always True on Apify
-        'args': [
-            '--disable-blink-features=AutomationControlled',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--no-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',  # Add this for better Apify compatibility
-            '--disable-dev-shm-usage',
-            '--no-first-run',
-            '--no-zygote'  # Add this for better container compatibility
-        ]
-    }
-    
-    # Add proxy configuration if provided
-    if self.proxy_config.get('useApifyProxy'):
-        proxy_groups = self.proxy_config.get('apifyProxyGroups', ['RESIDENTIAL'])
-        proxy_country = self.proxy_config.get('apifyProxyCountry', 'US')
-        launch_options['proxy'] = {
-            'server': f'http://groups-{"+".join(proxy_groups)},country-{proxy_country}:apify_proxy_password@proxy.apify.com:8000'
+    async def setup_browser(self):
+        """Initialize browser with proxy and cookie support"""
+        import os
+
+        playwright = await async_playwright().start()
+
+        # CRITICAL FIX: Always use headless mode on Apify platform
+        # Check if running on Apify platform
+        is_apify_platform = os.getenv('APIFY_IS_AT_HOME', 'false').lower() == 'true'
+
+        # Force headless=True on Apify platform, regardless of debug setting
+        headless_mode = True if is_apify_platform else (not self.debug)
+
+        # Browser launch options
+        launch_options = {
+            'headless': headless_mode,  # ✅ Fixed: Always True on Apify
+            'args': [
+                '--disable-blink-features=AutomationControlled',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',  # Add this for better Apify compatibility
+                '--disable-dev-shm-usage',
+                '--no-first-run',
+                '--no-zygote'  # Add this for better container compatibility
+            ]
         }
-    elif self.proxy_config.get('proxyUrls'):
-        proxy_url = self.proxy_config['proxyUrls'][0]
-        launch_options['proxy'] = {'server': proxy_url}
-    
-    browser = await playwright.chromium.launch(**launch_options)
-    logger.info(f"Browser launched successfully (headless: {headless_mode})")
-    
-    # Create context with additional settings
-    context_options = {
-        'viewport': {'width': 1920, 'height': 1080},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-    
-    self.browser_context = await browser.new_context(**context_options)
-    return self.browser_context
+
+        # Add proxy configuration if provided
+        if self.proxy_config.get('useApifyProxy'):
+            proxy_groups = self.proxy_config.get('apifyProxyGroups', ['RESIDENTIAL'])
+            proxy_country = self.proxy_config.get('apifyProxyCountry', 'US')
+            launch_options['proxy'] = {
+                'server': (
+                    f"http://groups-{'+'.join(proxy_groups)},country-{proxy_country}:"
+                    "apify_proxy_password@proxy.apify.com:8000"
+                )
+            }
+        elif self.proxy_config.get('proxyUrls'):
+            proxy_url = self.proxy_config['proxyUrls'][0]
+            launch_options['proxy'] = {'server': proxy_url}
+
+        browser = await playwright.chromium.launch(**launch_options)
+        logger.info(f"Browser launched successfully (headless: {headless_mode})")
+
+        # Create context with additional settings
+        context_options = {
+            'viewport': {'width': 1920, 'height': 1080},
+            'user_agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ),
+        }
+
+        self.browser_context = await browser.new_context(**context_options)
+        return self.browser_context
 
     def parse_cookies(self) -> List[Dict[str, Any]]:
         """Parse Facebook cookies from input"""
