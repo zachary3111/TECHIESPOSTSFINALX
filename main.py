@@ -262,20 +262,28 @@ class EnhancedFacebookPostsScraper:
         else:
             return f"{base_url}?q={encoded_query}&filters=recent"
 
-    async def extract_posts(self, page: Page) -> List[Dict[str, Any]]:
-        """Extract posts from the page with improved error handling"""
+async def extract_posts(self, page: Page) -> List[Dict[str, Any]]:
+        """Extract posts from the page with crash recovery"""
         posts = []
         
         try:
             logger.info("Waiting for page content to load...")
             
-            # Try multiple approaches to wait for content
+            # First, check if page crashed immediately
+            try:
+                page_title = await page.title()
+                logger.info(f"Page title: {page_title}")
+            except Exception as e:
+                logger.error(f"Page appears to have crashed immediately: {e}")
+                return posts
+            
+            # Try multiple approaches to wait for content with shorter timeouts
             wait_strategies = [
                 # Strategy 1: Wait for posts
-                ('[role="article"], [data-pagelet="FeedUnit"]', 15000),
-                # Strategy 2: Wait for any content area
-                ('div[data-pagelet], main, #mount_0_0_V5', 10000),
-                # Strategy 3: Just wait for basic page structure
+                ('[role="article"], [data-pagelet="FeedUnit"]', 10000),
+                # Strategy 2: Wait for any content area  
+                ('div[data-pagelet], main', 8000),
+                # Strategy 3: Wait for basic page structure
                 ('body', 5000)
             ]
             
@@ -286,26 +294,66 @@ class EnhancedFacebookPostsScraper:
                     logger.info(f"Content loaded using selector: {selector}")
                     content_loaded = True
                     break
-                except:
-                    logger.info(f"Timeout waiting for: {selector}")
+                except Exception as e:
+                    logger.info(f"Timeout waiting for: {selector} - {str(e)[:50]}")
                     continue
             
             if not content_loaded:
-                logger.warning("No content selectors worked - checking page manually")
+                logger.warning("No content selectors worked - trying direct extraction")
             
-            # Wait a bit more for dynamic content
-            await asyncio.sleep(5)
+            # Wait a bit for dynamic content, but with crash detection
+            for i in range(5):
+                try:
+                    await asyncio.sleep(1)
+                    # Test if page is still responsive
+                    await page.evaluate("document.title")
+                except Exception as e:
+                    logger.error(f"Page crashed during wait (attempt {i+1}): {e}")
+                    break
             
-            # Check if we're on login page
-            login_count = await page.locator('input[name="email"]').count()
-            if login_count > 0:
-                logger.error("Still on login page - cookies may have expired or failed")
-                return posts
+            # Check if we're on login page with crash protection
+            try:
+                login_count = await page.locator('input[name="email"]').count()
+                if login_count > 0:
+                    logger.error("Still on login page - cookies may have expired or failed")
+                    return posts
+            except Exception as e:
+                logger.warning(f"Could not check login status (page may have crashed): {e}")
+                # Continue anyway
             
-            # Try multiple post selectors
+            # Try to extract page content before it crashes completely
+            try:
+                # Get basic page info first
+                current_url = page.url
+                logger.info(f"Current URL: {current_url}")
+                
+                # Try to get any text content quickly
+                page_text = await page.inner_text('body')
+                logger.info(f"Page text length: {len(page_text)} characters")
+                
+                # If we got substantial content, create a basic post
+                if len(page_text) > 200:
+                    basic_post = {
+                        'text': page_text[:1000] + '...' if len(page_text) > 1000 else page_text,
+                        'author': 'Facebook Search Results',
+                        'timestamp': datetime.now().isoformat(),
+                        'likes': 0,
+                        'comments': 0,
+                        'shares': 0,
+                        'post_url': current_url,
+                        'extracted_at': datetime.now().isoformat(),
+                        'extraction_method': 'basic_page_content'
+                    }
+                    posts.append(basic_post)
+                    logger.info("Extracted basic page content as fallback")
+                
+            except Exception as e:
+                logger.error(f"Failed to extract basic page content: {e}")
+            
+            # Try to find actual post elements with crash protection
             post_selectors = [
                 '[role="article"]',
-                '[data-pagelet="FeedUnit"]',
+                '[data-pagelet="FeedUnit"]', 
                 '.userContentWrapper',
                 '._5jmm',
                 '[data-testid="post_message"]',
@@ -315,62 +363,48 @@ class EnhancedFacebookPostsScraper:
             post_elements = []
             for selector in post_selectors:
                 try:
+                    # Test if page is still responsive before each selector
+                    await page.evaluate("1+1")  # Simple test
+                    
                     elements = await page.locator(selector).all()
                     if elements and len(elements) > 0:
                         post_elements = elements
                         logger.info(f"Found {len(elements)} elements using selector: {selector}")
                         break
                 except Exception as e:
-                    logger.debug(f"Selector {selector} failed: {e}")
+                    logger.debug(f"Selector {selector} failed (possibly crashed): {e}")
                     continue
             
-            if not post_elements:
-                logger.warning("No post elements found with any selector")
-                
-                # Fallback: Try to get any text content
-                logger.info("Attempting fallback text extraction...")
-                try:
-                    page_text = await page.inner_text('body')
-                    if len(page_text) > 100:
-                        logger.info(f"Page has content ({len(page_text)} characters)")
-                        # Create a basic post entry with page content sample
-                        fallback_post = {
-                            'text': page_text[:500] + '...' if len(page_text) > 500 else page_text,
-                            'author': 'Unknown',
-                            'timestamp': datetime.now().isoformat(),
-                            'likes': 0,
-                            'comments': 0,
-                            'shares': 0,
-                            'post_url': page.url,
-                            'extracted_at': datetime.now().isoformat(),
-                            'extraction_method': 'fallback'
-                        }
-                        posts.append(fallback_post)
-                        logger.info("Added fallback content extraction")
-                except Exception as e:
-                    logger.error(f"Fallback extraction failed: {e}")
-                
-                return posts
-            
-            # Process found post elements
-            for i, post_element in enumerate(post_elements[:self.max_posts]):
-                try:
-                    post_data = await self.extract_single_post(post_element, page)
-                    if post_data:
-                        posts.append(post_data)
-                        logger.info(f"Extracted post {i+1}: {post_data.get('text', '')[:100]}...")
-                    else:
-                        logger.debug(f"Post {i+1} had no extractable content")
+            if post_elements:
+                # Process found post elements with crash protection
+                for i, post_element in enumerate(post_elements[:self.max_posts]):
+                    try:
+                        # Check if page is still alive before processing each post
+                        await page.evaluate("document.readyState")
                         
-                except Exception as e:
-                    logger.warning(f"Failed to extract post {i+1}: {e}")
-                    continue
+                        post_data = await self.extract_single_post(post_element, page)
+                        if post_data:
+                            posts.append(post_data)
+                            logger.info(f"Extracted post {i+1}: {post_data.get('text', '')[:100]}...")
+                        else:
+                            logger.debug(f"Post {i+1} had no extractable content")
+                            
+                    except Exception as e:
+                        logger.warning(f"Failed to extract post {i+1} (page may have crashed): {e}")
+                        # If we're getting crashes, stop trying more posts
+                        if "crashed" in str(e).lower() or "target" in str(e).lower():
+                            logger.error("Detected page crash - stopping post extraction")
+                            break
+                        continue
             
             logger.info(f"Successfully extracted {len(posts)} posts")
             return posts
             
         except Exception as e:
             logger.error(f"Error extracting posts: {e}")
+            # If we have some posts despite the error, return them
+            if posts:
+                logger.info(f"Returning {len(posts)} posts despite extraction error")
             return posts
 
     async def extract_single_post(self, post_element, page: Page) -> Optional[Dict[str, Any]]:
@@ -498,7 +532,7 @@ class EnhancedFacebookPostsScraper:
             return 0
 
     async def scrape_posts(self) -> List[Dict[str, Any]]:
-        """Main scraping method"""
+        """Main scraping method with crash recovery"""
         try:
             # Setup browser
             await self.setup_browser()
@@ -512,12 +546,20 @@ class EnhancedFacebookPostsScraper:
             search_url = self.build_search_url()
             logger.info(f"Navigating to: {search_url}")
             
-            # Navigate with retries
+            # Navigate with retries and crash detection
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    await page.goto(search_url, wait_until='domcontentloaded', timeout=60000)
-                    await asyncio.sleep(5)
+                    await page.goto(search_url, wait_until='domcontentloaded', timeout=45000)
+                    
+                    # Test if page loaded successfully
+                    await asyncio.sleep(3)
+                    try:
+                        page_title = await page.title()
+                        logger.info(f"Navigation successful, page title: {page_title}")
+                    except:
+                        logger.warning("Page may have issues after navigation")
+                    
                     break
                 except Exception as e:
                     logger.warning(f"Navigation attempt {attempt + 1} failed: {e}")
@@ -526,10 +568,13 @@ class EnhancedFacebookPostsScraper:
                     await asyncio.sleep(5)
             
             # Check if we need to handle login
-            if await page.locator('input[name="email"]').count() > 0:
-                logger.warning("Login page detected - limited access")
+            try:
+                if await page.locator('input[name="email"]').count() > 0:
+                    logger.warning("Login page detected - limited access")
+            except:
+                logger.warning("Could not check for login page (page may be unstable)")
             
-            # Extract posts
+            # Extract posts with crash protection
             posts = await self.extract_posts(page)
             
             return posts
@@ -538,8 +583,12 @@ class EnhancedFacebookPostsScraper:
             logger.error(f"Scraping failed: {e}")
             raise
         finally:
-            if self.browser_context:
-                await self.browser_context.close()
+            # Enhanced cleanup with crash protection
+            try:
+                if self.browser_context:
+                    await self.browser_context.close()
+            except Exception as e:
+                logger.warning(f"Browser cleanup failed (normal if crashed): {e}")
 
 async def main():
     """Main entry point for Apify Actor"""
