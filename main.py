@@ -394,7 +394,7 @@ async def setup_browser(self):  # ← This should have 4 spaces    """Initialize
         except:
             return 0
 
-    async def scrape_posts(self) -> List[Dict[str, Any]]:
+async def scrape_posts(self) -> List[Dict[str, Any]]:
         """Main scraping method"""
         try:
             # Setup browser
@@ -453,7 +453,6 @@ async def main():
             error_msg = "Either 'searchQuery' or 'searchUrl' must be provided"
             logger.error(error_msg)
             await Actor.set_status_message(error_msg)
-            await Actor.exit(1)
             return
         
         # Initialize scraper
@@ -475,9 +474,9 @@ async def main():
         except Exception as e:
             error_msg = f"Scraping error: {str(e)}"
             logger.error(error_msg)
-            # FIXED: Use proper error handling
+            # FIXED: Use proper error handling - Actor.exit() doesn't take arguments
             await Actor.set_status_message(error_msg)
-            await Actor.exit(1)  # Exit with error code
+            await Actor.abort()  # Use abort() instead of exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
