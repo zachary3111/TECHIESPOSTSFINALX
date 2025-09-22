@@ -15,7 +15,7 @@ from apify import Actor
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class StealthFacebookScraper:
+class MultiStrategyFacebookScraper:
     def __init__(self, input_data: Dict[str, Any]):
         self.input_data = input_data
         self.max_posts = input_data.get('maxPosts', 10)
@@ -38,24 +38,16 @@ class StealthFacebookScraper:
         
         # Advanced stealth browser arguments
         stealth_args = [
-            # Basic stealth
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
-            
-            # Advanced anti-detection
             '--disable-blink-features=AutomationControlled',
             '--disable-background-timer-throttling',
             '--disable-renderer-backgrounding',
             '--disable-backgrounding-occluded-windows',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-default-apps',
-            '--disable-extensions',
-            
-            # Remove automation markers
             '--exclude-switches=enable-automation',
             '--disable-hang-monitor',
             '--disable-prompt-on-repost',
@@ -63,25 +55,11 @@ class StealthFacebookScraper:
             '--disable-translate',
             '--hide-scrollbars',
             '--mute-audio',
-            
-            # Memory and performance
             '--memory-pressure-off',
-            '--max_old_space_size=4096',
-            
-            # Network stealth
             '--disable-features=VizDisplayCompositor,AudioServiceOutOfProcess',
             '--disable-ipc-flooding-protection',
             '--disable-web-security',
             '--allow-running-insecure-content',
-            
-            # Canvas and WebGL fingerprinting protection
-            '--disable-accelerated-2d-canvas',
-            '--disable-accelerated-jpeg-decoding',
-            '--disable-accelerated-mjpeg-decode',
-            '--disable-accelerated-video-decode',
-            '--disable-accelerated-video-encode',
-            '--disable-gpu-rasterization',
-            '--disable-gpu-sandbox',
         ]
         
         launch_options = {
@@ -98,7 +76,7 @@ class StealthFacebookScraper:
         
         # Create stealth context
         context_options = {
-            'viewport': {'width': 1366, 'height': 768},  # Common resolution
+            'viewport': {'width': 1366, 'height': 768},
             'user_agent': self.get_random_user_agent(),
             'locale': 'en-US',
             'timezone_id': 'America/New_York',
@@ -154,138 +132,138 @@ class StealthFacebookScraper:
             get: () => ['en-US', 'en'],
         });
         
-        // Mock permissions
-        const originalQuery = window.navigator.permissions.query;
-        window.navigator.permissions.query = (parameters) => (
-            parameters.name === 'notifications' ?
-                Promise.resolve({ state: Deno ? 'denied' : 'granted' }) :
-                originalQuery(parameters)
-        );
-        
         // Mock chrome runtime
         window.chrome = {
             runtime: {},
-        };
-        
-        // Mock chrome app
-        window.chrome.app = {
-            isInstalled: false,
-        };
-        
-        // Mock chrome csi
-        window.chrome.csi = function() {};
-        
-        // Mock chrome load times
-        window.chrome.loadTimes = function() {
-            return {
-                commitLoadTime: 1484781004.6,
-                connectionInfo: 'http/1.1',
-                finishDocumentLoadTime: 1484781004.758,
-                finishLoadTime: 1484781004.794,
-                firstPaintAfterLoadTime: 1484781004.794,
-                firstPaintTime: 1484781004.783,
-                navigationType: 'Other',
-                npnNegotiatedProtocol: 'unknown',
-                requestTime: 1484781004.572,
-                startLoadTime: 1484781004.572,
-                wasAlternateProtocolAvailable: false,
-                wasFetchedViaSpdy: false,
-                wasNpnNegotiated: false
-            };
+            app: { isInstalled: false },
+            csi: function() {},
+            loadTimes: function() {
+                return {
+                    commitLoadTime: 1484781004.6,
+                    connectionInfo: 'http/1.1',
+                    finishDocumentLoadTime: 1484781004.758,
+                    finishLoadTime: 1484781004.794,
+                    firstPaintAfterLoadTime: 1484781004.794,
+                    firstPaintTime: 1484781004.783,
+                    navigationType: 'Other',
+                    npnNegotiatedProtocol: 'unknown',
+                    requestTime: 1484781004.572,
+                    startLoadTime: 1484781004.572,
+                    wasAlternateProtocolAvailable: false,
+                    wasFetchedViaSpdy: false,
+                    wasNpnNegotiated: false
+                };
+            }
         };
         
         // Hide CDP runtime
         delete window.console.debug;
-        
-        // Spoof screen properties
-        Object.defineProperty(screen, 'availHeight', { get: () => 738 });
-        Object.defineProperty(screen, 'availWidth', { get: () => 1366 });
-        Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
-        Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
-        
-        // Random mouse movements simulation
-        let mouseX = Math.random() * window.innerWidth;
-        let mouseY = Math.random() * window.innerHeight;
-        
-        setInterval(() => {
-            mouseX += (Math.random() - 0.5) * 10;
-            mouseY += (Math.random() - 0.5) * 10;
-            mouseX = Math.max(0, Math.min(window.innerWidth, mouseX));
-            mouseY = Math.max(0, Math.min(window.innerHeight, mouseY));
-        }, 100);
         """
         
         await self.browser_context.add_init_script(stealth_script)
 
-    def build_simple_search_url(self) -> str:
-        """Build simple Facebook search URL without complex filters"""
-        # Use the simplest possible Facebook search URL
-        base_url = "https://www.facebook.com/search/posts"
+    def build_alternative_urls(self) -> List[str]:
+        """Build multiple URL strategies to try"""
         encoded_query = quote_plus(self.search_query.strip())
         
-        # Start with the most basic search
-        return f"{base_url}?q={encoded_query}"
+        urls_to_try = [
+            # Strategy 1: Mobile Facebook search
+            f"https://m.facebook.com/search/posts/?q={encoded_query}",
+            f"https://mobile.facebook.com/search/posts/?q={encoded_query}",
+            
+            # Strategy 2: Different desktop search formats
+            f"https://www.facebook.com/search/top/?q={encoded_query}",
+            f"https://www.facebook.com/search/posts/?q={encoded_query}&filters=recent",
+            f"https://www.facebook.com/search/?q={encoded_query}",
+            
+            # Strategy 3: Public pages related to search term
+            f"https://www.facebook.com/public/{encoded_query}",
+            
+            # Strategy 4: Hashtag-based search
+            f"https://www.facebook.com/hashtag/{encoded_query}",
+            
+            # Strategy 5: Basic Facebook with search parameter
+            f"https://www.facebook.com/?q={encoded_query}",
+        ]
+        
+        return urls_to_try
 
-    async def human_like_navigation(self, page: Page, url: str):
-        """Navigate like a human with realistic delays and behavior"""
+    async def try_url_strategy(self, page: Page, url: str) -> Dict[str, Any]:
+        """Try a specific URL strategy and analyze results"""
         try:
-            # Random delay before navigation
-            await asyncio.sleep(random.uniform(1, 3))
+            logger.info(f"Trying URL strategy: {url}")
             
-            # Navigate to page
-            response = await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            # Navigate with timeout
+            response = await page.goto(url, wait_until='domcontentloaded', timeout=20000)
             
-            # Check response status
-            if response and response.status >= 400:
-                logger.warning(f"HTTP {response.status} response")
+            # Analyze response
+            status = response.status if response else 0
+            page_title = await page.title()
             
-            # Human-like page interaction
-            await self.simulate_human_behavior(page)
+            # Wait for content
+            await asyncio.sleep(random.uniform(2, 4))
             
-            return True
+            # Get page content for analysis
+            page_content = await page.content()
+            
+            result = {
+                'url': url,
+                'status': status,
+                'title': page_title,
+                'content_length': len(page_content),
+                'success': False,
+                'posts': []
+            }
+            
+            # Determine if this strategy worked
+            if status == 200:
+                # Check for error indicators
+                error_indicators = [
+                    'This page isn\'t available',
+                    'content is not available',
+                    'Page not found',
+                    'login to continue',
+                    'Log in to Facebook'
+                ]
+                
+                page_text = await page.inner_text('body')
+                
+                # If page doesn't contain error indicators, try extraction
+                if not any(indicator.lower() in page_text.lower() for indicator in error_indicators):
+                    result['success'] = True
+                    posts = await self.extract_posts_from_strategy(page)
+                    result['posts'] = posts
+                    logger.info(f"Strategy {url} succeeded with {len(posts)} posts")
+                else:
+                    logger.warning(f"Strategy {url} returned error page")
+            else:
+                logger.warning(f"Strategy {url} returned status {status}")
+            
+            return result
             
         except Exception as e:
-            logger.error(f"Navigation failed: {e}")
-            return False
+            logger.error(f"Strategy {url} failed: {e}")
+            return {
+                'url': url,
+                'status': 0,
+                'title': '',
+                'content_length': 0,
+                'success': False,
+                'posts': [],
+                'error': str(e)
+            }
 
-    async def simulate_human_behavior(self, page: Page):
-        """Simulate realistic human browsing behavior"""
-        try:
-            # Random scroll simulation
-            scroll_steps = random.randint(1, 3)
-            for _ in range(scroll_steps):
-                await page.evaluate('window.scrollBy(0, Math.random() * 300)')
-                await asyncio.sleep(random.uniform(0.5, 1.5))
-            
-            # Random mouse movements
-            for _ in range(random.randint(1, 3)):
-                x = random.randint(100, 800)
-                y = random.randint(100, 600)
-                await page.mouse.move(x, y)
-                await asyncio.sleep(random.uniform(0.1, 0.3))
-            
-            # Random wait time
-            await asyncio.sleep(random.uniform(2, 5))
-            
-        except Exception as e:
-            logger.debug(f"Human simulation error: {e}")
-
-    async def extract_posts_advanced(self, page: Page) -> List[Dict[str, Any]]:
-        """Advanced post extraction without triggering detection"""
+    async def extract_posts_from_strategy(self, page: Page) -> List[Dict[str, Any]]:
+        """Extract posts from the current page regardless of strategy"""
         posts = []
         
         try:
-            logger.info("Starting advanced post extraction...")
-            
-            # Wait for content with multiple strategies
-            await self.wait_for_content(page)
-            
-            # Try multiple extraction approaches
+            # Multiple extraction approaches
             extraction_methods = [
-                self.extract_by_data_attributes,
-                self.extract_by_aria_roles,
+                self.extract_mobile_posts,
+                self.extract_desktop_posts,
                 self.extract_by_text_patterns,
-                self.extract_by_dom_traversal
+                self.extract_by_semantic_analysis
             ]
             
             for method in extraction_methods:
@@ -300,125 +278,137 @@ class StealthFacebookScraper:
                     continue
             
             # Remove duplicates and limit results
-            unique_posts = []
-            seen_texts = set()
-            
-            for post in posts:
-                text_key = (post.get('text', '') or '')[:100]
-                if text_key and text_key not in seen_texts:
-                    seen_texts.add(text_key)
-                    unique_posts.append(post)
-                    
-                    if len(unique_posts) >= self.max_posts:
-                        break
-            
-            logger.info(f"Successfully extracted {len(unique_posts)} unique posts")
-            return unique_posts
+            unique_posts = self.deduplicate_posts(posts)
+            return unique_posts[:self.max_posts]
             
         except Exception as e:
-            logger.error(f"Advanced extraction failed: {e}")
-            return posts
-
-    async def wait_for_content(self, page: Page):
-        """Wait for Facebook content to load"""
-        selectors_to_try = [
-            'div[role="main"]',
-            'div[data-pagelet]',
-            '#mount_0_0_V5',
-            'body'
-        ]
-        
-        for selector in selectors_to_try:
-            try:
-                await page.wait_for_selector(selector, timeout=10000)
-                logger.info(f"Content loaded: {selector}")
-                return
-            except:
-                continue
-        
-        logger.warning("No content selectors found, proceeding anyway")
-
-    async def extract_by_data_attributes(self, page: Page) -> List[Dict[str, Any]]:
-        """Extract posts using data attributes"""
-        posts = []
-        
-        try:
-            # Look for posts by data attributes
-            post_elements = await page.locator('div[data-pagelet*="FeedUnit"], div[role="article"]').all()
-            
-            for element in post_elements[:self.max_posts]:
-                post_data = await self.extract_post_data(element, page)
-                if post_data:
-                    posts.append(post_data)
-            
-            return posts
-            
-        except Exception as e:
-            logger.debug(f"Data attribute extraction failed: {e}")
+            logger.error(f"Post extraction failed: {e}")
             return []
 
-    async def extract_by_aria_roles(self, page: Page) -> List[Dict[str, Any]]:
-        """Extract posts using ARIA roles"""
+    async def extract_mobile_posts(self, page: Page) -> List[Dict[str, Any]]:
+        """Extract posts from mobile Facebook"""
         posts = []
         
         try:
-            # Look for posts by ARIA roles
-            post_elements = await page.locator('[role="article"], [role="feed"] > div').all()
+            # Mobile Facebook specific selectors
+            mobile_selectors = [
+                'div[data-ft]',  # Mobile Facebook post containers
+                'article',
+                'div[role="article"]',
+                '.story_body_container',
+                'div._5pcr',
+                '._4-u2'
+            ]
             
-            for element in post_elements[:self.max_posts]:
-                post_data = await self.extract_post_data(element, page)
-                if post_data:
-                    posts.append(post_data)
+            for selector in mobile_selectors:
+                elements = await page.locator(selector).all()
+                if elements:
+                    logger.info(f"Found {len(elements)} mobile posts with selector: {selector}")
+                    
+                    for element in elements[:self.max_posts]:
+                        try:
+                            text = await element.inner_text()
+                            if text and len(text.strip()) > 30:
+                                post_data = {
+                                    'text': text.strip(),
+                                    'author': 'Facebook User',
+                                    'timestamp': datetime.now().isoformat(),
+                                    'likes': 0,
+                                    'comments': 0,
+                                    'shares': 0,
+                                    'post_url': page.url,
+                                    'extracted_at': datetime.now().isoformat(),
+                                    'extraction_method': 'mobile_posts'
+                                }
+                                posts.append(post_data)
+                        except:
+                            continue
+                    
+                    if posts:
+                        break
             
             return posts
             
         except Exception as e:
-            logger.debug(f"ARIA role extraction failed: {e}")
+            logger.debug(f"Mobile extraction failed: {e}")
+            return []
+
+    async def extract_desktop_posts(self, page: Page) -> List[Dict[str, Any]]:
+        """Extract posts from desktop Facebook"""
+        posts = []
+        
+        try:
+            # Desktop Facebook specific selectors
+            desktop_selectors = [
+                '[role="article"]',
+                '[data-pagelet="FeedUnit"]',
+                '.userContentWrapper',
+                '._5jmm',
+                '[data-testid="post_message"]'
+            ]
+            
+            for selector in desktop_selectors:
+                elements = await page.locator(selector).all()
+                if elements:
+                    logger.info(f"Found {len(elements)} desktop posts with selector: {selector}")
+                    
+                    for element in elements[:self.max_posts]:
+                        try:
+                            text = await element.inner_text()
+                            if text and len(text.strip()) > 30:
+                                post_data = {
+                                    'text': text.strip(),
+                                    'author': 'Facebook User',
+                                    'timestamp': datetime.now().isoformat(),
+                                    'likes': 0,
+                                    'comments': 0,
+                                    'shares': 0,
+                                    'post_url': page.url,
+                                    'extracted_at': datetime.now().isoformat(),
+                                    'extraction_method': 'desktop_posts'
+                                }
+                                posts.append(post_data)
+                        except:
+                            continue
+                    
+                    if posts:
+                        break
+            
+            return posts
+            
+        except Exception as e:
+            logger.debug(f"Desktop extraction failed: {e}")
             return []
 
     async def extract_by_text_patterns(self, page: Page) -> List[Dict[str, Any]]:
-        """Extract posts by finding text patterns"""
+        """Extract posts by analyzing text patterns"""
         posts = []
         
         try:
-            # Get all text content and parse for post-like structures
-            page_content = await page.content()
+            # Get meaningful text content
+            text_elements = await page.locator('div, p, span, article').all()
             
-            # Use DOM traversal to find meaningful content
-            content_elements = await page.locator('div, span, p').all()
-            
-            potential_posts = []
-            for element in content_elements[:50]:
+            for element in text_elements[:50]:
                 try:
                     text = await element.inner_text()
-                    if text and len(text.strip()) > 30:  # Meaningful content
-                        # Check if this looks like a social media post
-                        if self.looks_like_post(text):
-                            post_data = {
-                                'text': text.strip(),
-                                'author': 'Facebook User',
-                                'timestamp': datetime.now().isoformat(),
-                                'likes': 0,
-                                'comments': 0,
-                                'shares': 0,
-                                'post_url': page.url,
-                                'extracted_at': datetime.now().isoformat(),
-                                'extraction_method': 'text_pattern'
-                            }
-                            potential_posts.append(post_data)
+                    if text and self.looks_like_social_post(text):
+                        post_data = {
+                            'text': text.strip(),
+                            'author': 'Facebook User',
+                            'timestamp': datetime.now().isoformat(),
+                            'likes': 0,
+                            'comments': 0,
+                            'shares': 0,
+                            'post_url': page.url,
+                            'extracted_at': datetime.now().isoformat(),
+                            'extraction_method': 'text_patterns'
+                        }
+                        posts.append(post_data)
+                        
+                        if len(posts) >= self.max_posts:
+                            break
                 except:
                     continue
-            
-            # Filter and deduplicate
-            seen_texts = set()
-            for post in potential_posts:
-                text_key = post['text'][:100]
-                if text_key not in seen_texts and len(post['text']) > 50:
-                    seen_texts.add(text_key)
-                    posts.append(post)
-                    
-                    if len(posts) >= self.max_posts:
-                        break
             
             return posts
             
@@ -426,41 +416,40 @@ class StealthFacebookScraper:
             logger.debug(f"Text pattern extraction failed: {e}")
             return []
 
-    def looks_like_post(self, text: str) -> bool:
-        """Check if text looks like a social media post"""
-        # Simple heuristics to identify post-like content
-        post_indicators = [
-            len(text.split()) > 5,  # More than 5 words
-            not text.startswith(('http', 'www')),  # Not just a URL
-            '\n' not in text or text.count('\n') < 5,  # Not too many line breaks
-            not text.isupper(),  # Not all caps
-            not all(c.isdigit() or c.isspace() for c in text),  # Not just numbers
-        ]
-        
-        return sum(post_indicators) >= 3
-
-    async def extract_by_dom_traversal(self, page: Page) -> List[Dict[str, Any]]:
-        """Extract by traversing DOM structure"""
+    async def extract_by_semantic_analysis(self, page: Page) -> List[Dict[str, Any]]:
+        """Extract posts using semantic analysis"""
         posts = []
         
         try:
-            # JavaScript-based extraction
+            # JavaScript-based semantic extraction
             extraction_script = """
             () => {
                 const posts = [];
-                const elements = document.querySelectorAll('div, article, section');
+                const elements = document.querySelectorAll('*');
                 
                 for (const el of elements) {
                     const text = el.textContent;
+                    
+                    // Look for elements that might be posts
                     if (text && text.length > 50 && text.length < 2000) {
-                        // Check if this element has child elements that look like post metadata
+                        // Check for post-like characteristics
                         const hasLinks = el.querySelector('a');
-                        const hasTime = el.querySelector('time, [title*="202"]');
+                        const hasTime = text.match(/\\d{1,2}\\s+(hour|day|week|month)s?\\s+ago/i);
+                        const hasHashtags = text.includes('#');
+                        const hasMentions = text.includes('@');
                         
-                        if (hasLinks || hasTime) {
+                        // Score the element
+                        let score = 0;
+                        if (hasLinks) score += 1;
+                        if (hasTime) score += 2;
+                        if (hasHashtags) score += 1;
+                        if (hasMentions) score += 1;
+                        
+                        // If it looks like a post, add it
+                        if (score >= 1 || text.split(' ').length > 10) {
                             posts.push({
                                 text: text.trim(),
-                                html: el.innerHTML.length > 5000 ? 'too_long' : el.innerHTML
+                                score: score
                             });
                         }
                     }
@@ -468,7 +457,7 @@ class StealthFacebookScraper:
                     if (posts.length >= 20) break;
                 }
                 
-                return posts;
+                return posts.sort((a, b) => b.score - a.score);
             }
             """
             
@@ -484,62 +473,93 @@ class StealthFacebookScraper:
                     'shares': 0,
                     'post_url': page.url,
                     'extracted_at': datetime.now().isoformat(),
-                    'extraction_method': 'dom_traversal'
+                    'extraction_method': 'semantic_analysis',
+                    'semantic_score': js_post.get('score', 0)
                 }
                 posts.append(post_data)
             
             return posts
             
         except Exception as e:
-            logger.debug(f"DOM traversal extraction failed: {e}")
+            logger.debug(f"Semantic analysis failed: {e}")
             return []
 
-    async def extract_post_data(self, element, page: Page) -> Optional[Dict[str, Any]]:
-        """Extract data from a single post element"""
-        try:
-            text = await element.inner_text()
-            if not text or len(text.strip()) < 20:
-                return None
-            
-            post_data = {
-                'text': text.strip(),
-                'author': 'Facebook User',
-                'timestamp': datetime.now().isoformat(),
-                'likes': 0,
-                'comments': 0,
-                'shares': 0,
-                'post_url': page.url,
-                'extracted_at': datetime.now().isoformat(),
-                'extraction_method': 'element_extraction'
-            }
-            
-            return post_data
-            
-        except Exception as e:
-            logger.debug(f"Post data extraction failed: {e}")
-            return None
+    def looks_like_social_post(self, text: str) -> bool:
+        """Enhanced detection for social media posts"""
+        if not text or len(text.strip()) < 20:
+            return False
+        
+        # Enhanced heuristics
+        post_indicators = [
+            len(text.split()) > 5,  # Reasonable word count
+            not text.startswith(('http', 'www')),  # Not just a URL
+            '\n' not in text or text.count('\n') < 10,  # Not excessive line breaks
+            not text.isupper(),  # Not all caps (likely not UI text)
+            any(word in text.lower() for word in ['i ', 'we ', 'my ', 'our ', 'just ', 'today ', 'yesterday ']),  # Personal language
+            '#' in text or '@' in text,  # Social media markers
+            any(phrase in text.lower() for phrase in ['excited to', 'happy to', 'proud to', 'check out']),  # Social expressions
+            not all(c.isdigit() or c.isspace() for c in text),  # Not just numbers
+            'facebook' not in text.lower() or 'meta' not in text.lower()  # Not Facebook UI text
+        ]
+        
+        return sum(post_indicators) >= 4
+
+    def deduplicate_posts(self, posts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Remove duplicate posts"""
+        seen_texts = set()
+        unique_posts = []
+        
+        for post in posts:
+            text_key = post.get('text', '')[:100]  # Use first 100 chars as key
+            if text_key and text_key not in seen_texts:
+                seen_texts.add(text_key)
+                unique_posts.append(post)
+        
+        return unique_posts
 
     async def scrape_posts(self) -> List[Dict[str, Any]]:
-        """Main scraping method with advanced stealth"""
+        """Main scraping method with multiple URL strategies"""
         try:
             # Setup stealth browser
             await self.setup_stealth_browser()
             page = await self.browser_context.new_page()
             
-            # Build simple search URL
-            search_url = self.build_simple_search_url()
-            logger.info(f"Navigating to: {search_url}")
+            # Build alternative URLs to try
+            urls_to_try = self.build_alternative_urls()
+            logger.info(f"Will try {len(urls_to_try)} different URL strategies")
             
-            # Human-like navigation
-            success = await self.human_like_navigation(page, search_url)
-            if not success:
-                logger.error("Navigation failed")
-                return []
+            all_posts = []
+            successful_strategies = []
             
-            # Advanced post extraction
-            posts = await self.extract_posts_advanced(page)
+            # Try each URL strategy
+            for url in urls_to_try:
+                try:
+                    # Random delay between attempts
+                    await asyncio.sleep(random.uniform(1, 3))
+                    
+                    result = await self.try_url_strategy(page, url)
+                    
+                    if result['success'] and result['posts']:
+                        successful_strategies.append(result)
+                        all_posts.extend(result['posts'])
+                        logger.info(f"Strategy {url} found {len(result['posts'])} posts")
+                        
+                        # If we have enough posts, we can stop
+                        if len(all_posts) >= self.max_posts:
+                            break
+                    
+                except Exception as e:
+                    logger.warning(f"Strategy {url} encountered error: {e}")
+                    continue
             
-            return posts
+            # Log strategy results
+            logger.info(f"Tried {len(urls_to_try)} strategies, {len(successful_strategies)} succeeded")
+            
+            # Deduplicate and limit results
+            unique_posts = self.deduplicate_posts(all_posts)
+            final_posts = unique_posts[:self.max_posts]
+            
+            return final_posts
             
         except Exception as e:
             logger.error(f"Scraping failed: {e}")
@@ -566,8 +586,8 @@ async def main():
             await Actor.set_status_message(error_msg)
             return
         
-        # Initialize stealth scraper
-        scraper = StealthFacebookScraper(input_data)
+        # Initialize multi-strategy scraper
+        scraper = MultiStrategyFacebookScraper(input_data)
         
         try:
             # Scrape posts
