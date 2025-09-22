@@ -26,7 +26,7 @@ class EnhancedFacebookPostsScraper:
         self.browser_context = None
         self.scraped_posts = []
         
-   async def setup_browser(self):
+   async def setup_browser(self):    
     """Initialize browser with proxy and cookie support"""
     import os
     playwright = await async_playwright().start()
@@ -40,7 +40,7 @@ class EnhancedFacebookPostsScraper:
     
     # Browser launch options
     launch_options = {
-        'headless': headless_mode,  # ✅ Fixed: Always True on Apify
+        'headless': headless_mode,        
         'args': [
             '--disable-blink-features=AutomationControlled',
             '--disable-web-security',
